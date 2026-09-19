@@ -10,6 +10,7 @@ class DocumentResponse(BaseModel):
     file_size: int
     status: str
     processing_error: str | None = None
+    extracted_text: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

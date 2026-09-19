@@ -49,6 +49,11 @@ class Document(Base):
         nullable=True,
     )
 
+    extracted_text: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -61,3 +66,4 @@ class Document(Base):
         onupdate=datetime.utcnow,
         nullable=False,
     )
+
