@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from backend.api.auth import router as auth_router
 from backend.core.config import settings
 from backend.core.database import engine
+from backend.api.documents import router as documents_router
 
 
 app = FastAPI(
@@ -14,6 +16,11 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+
+# Authentication routes
+app.include_router(auth_router)
+app.include_router(documents_router)
 
 
 @app.get("/health", tags=["System"])
