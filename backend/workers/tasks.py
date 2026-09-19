@@ -9,6 +9,10 @@ from backend.models.document import Document
 from backend.models.question import Question
 from backend.services.document_processor import extract_text_from_document
 from backend.services.question_extractor import extract_questions
+from backend.services.answer_matcher import (
+    extract_answer_key,
+    match_answers_to_questions,
+)
 
 
 celery_app = Celery(
@@ -44,6 +48,7 @@ def process_document(self, document_id: int):
                 f"Document {document_id} was not found."
             )
 
+        # Mark document as processing
         document.status = "processing"
         document.processing_error = None
         db.commit()
@@ -60,6 +65,15 @@ def process_document(self, document_id: int):
         # Extract questions from the text
         questions = extract_questions(extracted_text)
 
+        # Extract answer key from the same document
+        answer_key = extract_answer_key(extracted_text)
+
+        # Associate answers with extracted questions
+        questions = match_answers_to_questions(
+            questions,
+            answer_key,
+        )
+
         # Remove previously extracted questions if reprocessing
         db.query(Question).filter(
             Question.document_id == document.id
@@ -72,7 +86,11 @@ def process_document(self, document_id: int):
                 question_number=question_data["question_number"],
                 question_text=question_data["question_text"],
                 question_type=question_data["question_type"],
-                options_json=json.dumps(question_data["options"]),
+                options_json=json.dumps(
+                    question_data["options"]
+                ),
+                answer=question_data["answer"],
+                answer_confidence=question_data["answer_confidence"],
                 extraction_confidence=question_data[
                     "extraction_confidence"
                 ],
@@ -98,6 +116,11 @@ def process_document(self, document_id: int):
             "status": document.status,
             "text_length": len(extracted_text),
             "questions_extracted": len(questions),
+            "answers_matched": sum(
+                1
+                for question in questions
+                if question["answer"] is not None
+            ),
         }
 
     except Exception as exc:
