@@ -5,6 +5,7 @@ from backend.api.auth import router as auth_router
 from backend.core.config import settings
 from backend.core.database import engine
 from backend.api.documents import router as documents_router
+from backend.api.questions import router as questions_router
 
 
 app = FastAPI(
@@ -21,6 +22,7 @@ app = FastAPI(
 # Authentication routes
 app.include_router(auth_router)
 app.include_router(documents_router)
+app.include_router(questions_router)
 
 
 @app.get("/health", tags=["System"])

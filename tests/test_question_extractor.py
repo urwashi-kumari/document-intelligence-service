@@ -32,3 +32,19 @@ D. Graph
 
     assert questions[1]["question_number"] == "2"
     assert questions[1]["options"]["B"] == "Queue"
+
+
+def test_ignore_bibliography_entries():
+    text = """
+[PAGE 2]
+
+1. MONGODB FUNDAMENTALS: A HANDS-ON GUIDE
+by AMIT PHALTANKAR, JUNED AHSAN, PACKT PUBLISHING
+
+2. MONGODB IN ACTION by KYLE BANKER,
+Manning Publication
+"""
+
+    questions = extract_questions(text)
+
+    assert len(questions) == 0
