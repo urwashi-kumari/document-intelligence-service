@@ -1,59 +1,90 @@
 import re
 
 
-ANSWER_LINE_PATTERN = re.compile(
-    r"^\s*(?:Q(?:uestion)?\s*)?(\d+)\s*[\.\):-]\s*([A-Ha-h])\s*$",
+# Compact format used by the real document:
+# 1b
+# 21d
+# 41a
+COMPACT_ANSWER_PATTERN = re.compile(
+    r"^\s*(\d+)\s*([A-Ha-h])\s*$"
+)
+
+# Formats such as:
+# 1. B
+# 2) C
+# 3: D
+STANDARD_ANSWER_PATTERN = re.compile(
+    r"^\s*(?:Q(?:uestion)?\s*)?(\d+)\s*[\.\):\-]\s*"
+    r"[\(\[]?([A-Ha-h])[\)\]]?\s*$",
     re.IGNORECASE,
 )
 
-ANSWER_KEY_HEADER_PATTERN = re.compile(
-    r"\b(answer\s*key|answers?|solutions?)\b",
+# Formats such as:
+# Q1: A
+# Question 2 - B
+NAMED_ANSWER_PATTERN = re.compile(
+    r"^\s*(?:Q(?:uestion)?\s*)(\d+)\s*[\.\):\-]\s*"
+    r"[\(\[]?([A-Ha-h])[\)\]]?\s*$",
     re.IGNORECASE,
 )
 
 
 def normalize_answer(answer: str) -> str:
-    """
-    Normalize an answer value such as:
-    'A', 'a', '(A)', 'Option A' -> 'A'
-    """
-    answer = answer.strip().upper()
-
-    match = re.search(r"\b([A-H])\b", answer)
-    if match:
-        return match.group(1)
-
-    return answer
+    """Normalize an answer option to uppercase."""
+    return answer.strip().upper()
 
 
 def extract_answer_key(text: str) -> dict[str, str]:
     """
     Extract question-number -> answer-option mappings.
 
-    Supported examples:
+    Supported formats:
 
-        1. A
-        2. C
-        3. B
+        1b
+        21d
+        41a
 
-    Also supports:
+        1. B
+        2) C
+        3: D
 
         Q1: A
-        Question 2 - C
-        3) D
-
-    Only explicit answer mappings are extracted.
+        Question 2 - B
+        Q3) C
     """
 
     answers: dict[str, str] = {}
 
-    for raw_line in text.splitlines():
+    lines = text.splitlines()
+
+    has_answer_key_heading = any(
+        re.search(r"\bANSWER\s+KEY\b", line, re.IGNORECASE)
+        for line in lines
+    )
+
+    # If the document contains an ANSWER KEY heading,
+    # ignore numbered content before that heading.
+    answer_key_started = not has_answer_key_heading
+
+    for raw_line in lines:
         line = raw_line.strip()
 
         if not line:
             continue
 
-        match = ANSWER_LINE_PATTERN.match(line)
+        # Detect answer-key section.
+        if re.search(r"\bANSWER\s+KEY\b", line, re.IGNORECASE):
+            answer_key_started = True
+            continue
+
+        if not answer_key_started:
+            continue
+
+        match = (
+            NAMED_ANSWER_PATTERN.match(line)
+            or STANDARD_ANSWER_PATTERN.match(line)
+            or COMPACT_ANSWER_PATTERN.match(line)
+        )
 
         if not match:
             continue
@@ -61,7 +92,16 @@ def extract_answer_key(text: str) -> dict[str, str]:
         question_number = match.group(1)
         answer = normalize_answer(match.group(2))
 
-        if answer in {"A", "B", "C", "D", "E", "F", "G", "H"}:
+        if answer in {
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+        }:
             answers[question_number] = answer
 
     return answers
@@ -72,18 +112,18 @@ def match_answers_to_questions(
     answer_key: dict[str, str],
 ) -> list[dict]:
     """
-    Associate extracted answers with extracted questions.
+    Associate answer-key entries with extracted questions.
 
-    Answers are assigned only when the question number has
-    an explicit matching entry in the answer key.
-
-    Missing mappings remain uncertain and require review.
+    If an explicit answer is unavailable, no answer is guessed.
+    The question remains in review status.
     """
 
     results = []
 
     for question in questions:
-        question_number = str(question.get("question_number", "")).strip()
+        question_number = str(
+            question.get("question_number", "")
+        ).strip()
 
         result = question.copy()
 
